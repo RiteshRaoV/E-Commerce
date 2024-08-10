@@ -33,7 +33,11 @@ from .permissions import IsSeller
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
-from .serializers import CreateOrderSerializer, UploadProductImagesSerializer, get_discounted_price
+from .serializers import (
+    CreateOrderSerializer,
+    UploadProductImagesSerializer,
+    get_discounted_price,
+)
 
 User = get_user_model()
 
@@ -169,12 +173,15 @@ class ListCartItemsView(generics.ListAPIView):
             return CartItem.objects.filter(cart__user__id=user_id)
         return CartItem.objects.none()
 
+
 class CreateOrderView(APIView):
     permission_classes = [IsAuthenticated]
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update({"request": self.request})
         return context
+
     @swagger_auto_schema(request_body=CreateOrderSerializer)
     def post(self, request, *args, **kwargs):
         user = self.request.user
@@ -186,10 +193,10 @@ class CreateOrderView(APIView):
             )
 
         serializer = CreateOrderSerializer(data=request.data)
-
         serializer.is_valid(raise_exception=True)
-        coupon_code = serializer.validated_data.get('coupon_code', None)
+        coupon_code = serializer.validated_data.get("coupon_code", None)
 
+        coupon = None
         if coupon_code:
             try:
                 coupon = Coupon.objects.get(code=coupon_code)
@@ -207,11 +214,20 @@ class CreateOrderView(APIView):
         total_price = sum(
             get_discounted_price(item.product) * item.quantity for item in cart_items
         )
+        actual_amount = sum(item.product.price * item.quantity for item in cart_items)
 
         if coupon:
             total_price = coupon.apply_discount(total_price)
+            
+        savings = actual_amount - total_price
 
-        order = Order.objects.create(user=user, total_amount=total_price)
+        order = Order.objects.create(
+            user=user,
+            coupon=coupon if coupon else None,
+            total_amount=actual_amount,
+            final_discounted_amount=total_price,
+            savings=savings,
+        )
 
         for item in cart_items:
             discounted_price = get_discounted_price(item.product)
@@ -237,6 +253,11 @@ class CreateOrderView(APIView):
 
 @permission_classes([IsAuthenticated])
 class CancelOrderView(APIView):
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update({"request": self.request})
+        return context
+
     def post(self, request, *args, **kwargs):
         order_id = self.kwargs.get("order_id")
 
@@ -254,7 +275,20 @@ class CancelOrderView(APIView):
                 product = item.product
                 product.stock += item.quantity
                 product.save()
-            
+
+            if order.coupon:
+                try:
+                    coupon_usage = CouponUsage.objects.get(
+                        coupon=order.coupon, user=order.user
+                    )
+                    coupon_usage.delete()
+
+                    coupon = Coupon.objects.get(pk=order.coupon.pk)
+                    coupon.coupon_count += 1
+                    coupon.save()
+                except CouponUsage.DoesNotExist:
+                    pass
+
             order.status = "Cancelled"
             order.save()
 

@@ -61,9 +61,11 @@ class CartItem(models.Model):
 
 
 class Order(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL,
-                             on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    savings = models.DecimalField(max_digits=10, decimal_places=2)
+    coupon = models.ForeignKey('discounts.Coupon', blank=True, null=True, on_delete=models.SET_NULL)
+    final_discounted_amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=50, choices=[('Pending', 'Pending'), (
         'Completed', 'Completed'), ('Cancelled', 'Cancelled')], default='Pending')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -71,7 +73,6 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order #{self.pk} by {self.user.username}"
-
 
 class OrderItem(models.Model):
     order = models.ForeignKey(
