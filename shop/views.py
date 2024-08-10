@@ -1,8 +1,15 @@
-from itertools import product
-from urllib import request
-from django.forms import ValidationError
 from rest_framework import generics
-from shop.models import CartItem, Order, OrderItem, Product, ProductImage, Store, StoreProduct
+from discounts.models import Coupon, CouponUsage
+from drf_yasg.utils import swagger_auto_schema
+from shop.models import (
+    CartItem,
+    Order,
+    OrderItem,
+    Product,
+    ProductImage,
+    Store,
+    StoreProduct,
+)
 from shop.serializers import (
     AddProductSerializer,
     CartItemsDetailsSerializer,
@@ -26,7 +33,7 @@ from .permissions import IsSeller
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
-from .serializers import UploadProductImagesSerializer, get_discounted_price
+from .serializers import CreateOrderSerializer, UploadProductImagesSerializer, get_discounted_price
 
 User = get_user_model()
 
@@ -44,7 +51,7 @@ class ListAllProducts(generics.ListAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context.update({'request': self.request})
+        context.update({"request": self.request})
         return context
 
 
@@ -62,6 +69,7 @@ class AddProductView(generics.CreateAPIView):
             serializer.save()
         else:
             raise PermissionDenied("Unauthorized")
+
 
 # @permission_classes([IsAuthenticated, IsSeller])
 
@@ -117,7 +125,7 @@ class ListSellersProductsView(generics.ListAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context.update({'request': self.request})
+        context.update({"request": self.request})
         return context
 
 
@@ -130,10 +138,8 @@ class AddToCartView(generics.CreateAPIView):
         product = serializer.validated_data["product"]
         quantity = serializer.validated_data["quantity"]
         if product.stock <= quantity:
-            raise NotFound(
-                "product is not available in the requested quantity")
-        existing_item = CartItem.objects.filter(
-            cart=cart, product=product).first()
+            raise NotFound("product is not available in the requested quantity")
+        existing_item = CartItem.objects.filter(cart=cart, product=product).first()
 
         if existing_item:
             existing_item.quantity += quantity
@@ -163,10 +169,13 @@ class ListCartItemsView(generics.ListAPIView):
             return CartItem.objects.filter(cart__user__id=user_id)
         return CartItem.objects.none()
 
-
 class CreateOrderView(APIView):
     permission_classes = [IsAuthenticated]
-
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update({"request": self.request})
+        return context
+    @swagger_auto_schema(request_body=CreateOrderSerializer)
     def post(self, request, *args, **kwargs):
         user = self.request.user
         cart_items = CartItem.objects.filter(cart__user=user)
@@ -176,9 +185,31 @@ class CreateOrderView(APIView):
                 {"message": "No items in the cart"}, status=status.HTTP_204_NO_CONTENT
             )
 
+        serializer = CreateOrderSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+        coupon_code = serializer.validated_data.get('coupon_code', None)
+
+        if coupon_code:
+            try:
+                coupon = Coupon.objects.get(code=coupon_code)
+                if not coupon.is_active() or coupon.has_user_used(user):
+                    return Response(
+                        {"message": "Invalid or expired coupon"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            except Coupon.DoesNotExist:
+                return Response(
+                    {"message": "Coupon does not exist"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         total_price = sum(
             get_discounted_price(item.product) * item.quantity for item in cart_items
         )
+
+        if coupon:
+            total_price = coupon.apply_discount(total_price)
 
         order = Order.objects.create(user=user, total_amount=total_price)
 
@@ -195,6 +226,9 @@ class CreateOrderView(APIView):
             product = Product.objects.get(pk=item.product.pk)
             product.stock -= item.quantity
             product.save()
+
+        if coupon:
+            CouponUsage.objects.create(coupon=coupon, user=user)
 
         cart_items.delete()
 
@@ -220,7 +254,7 @@ class CancelOrderView(APIView):
                 product = item.product
                 product.stock += item.quantity
                 product.save()
-
+            
             order.status = "Cancelled"
             order.save()
 

@@ -5,6 +5,8 @@ from brands_and_categories.models import Brand, Category
 from brands_and_categories.serializers import BrandSerializer, CategorySerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 
+from discounts.models import Coupon
+from discounts.serializers import CouponSerializer
 from shop.models import Product
 from shop.serializers import ProductSerializer
 
@@ -45,3 +47,8 @@ class CategoryProductsView(generics.ListAPIView):
     def get_queryset(self):
         category_id=self.kwargs.get('category_id')
         return Product.objects.filter(category=category_id)
+    
+class CreateCouponView(generics.ListCreateAPIView):
+    queryset = Coupon.objects.all()
+    serializer_class = CouponSerializer
+    

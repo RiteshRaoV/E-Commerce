@@ -193,3 +193,6 @@ class StoreProductListSerializer(serializers.Serializer):
         StoreProduct.objects.bulk_create(new_products)
 
         return validated_data
+
+class CreateOrderSerializer(serializers.Serializer):
+    coupon_code = serializers.CharField(required=False, allow_blank=True)
