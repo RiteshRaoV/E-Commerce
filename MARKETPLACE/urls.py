@@ -39,7 +39,8 @@ urlpatterns = [
         schema_view.with_ui("swagger", cache_timeout=0),
         name="schema-swagger-ui",
     ),
-    path("api/shop/", include("shop.urls")),
+    path("api/", include("shop.urls")),
+    path("api/", include("brands_and_categories.urls")),
     path('api/auth/', include("jwtAuth.urls")),
     path('api/dicounts/', include("discounts.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

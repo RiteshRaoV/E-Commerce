@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'shop',
     'discounts',
+    'brands_and_categories',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

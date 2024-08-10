@@ -3,26 +3,13 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from MARKETPLACE import settings
+from brands_and_categories.models import Brand, Category
 
 
 class CustomUser(AbstractUser):
     is_seller = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
-
-
-class Category(models.Model):
-    name = models.CharField(max_length=100)
-
-    def __str__(self) -> str:
-        return self.name
-
-
-class Brand(models.Model):
-    name = models.CharField(max_length=50)
-
-    def __str__(self) -> str:
-        return self.name
 
 
 class Product(models.Model):
@@ -38,11 +25,19 @@ class Product(models.Model):
     brand = models.ForeignKey(
         Brand, on_delete=models.CASCADE, related_name="products", null=True, blank=True
     )
-    image = models.ImageField(
+    thumbnail = models.ImageField(
         upload_to="product_images/", blank=True, null=True)
 
     def __str__(self):
         return self.title
+
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="images", default=None
+    )
+    product_image = models.ImageField(
+        upload_to="product_images/", blank=True, null=True)
 
 
 class Cart(models.Model):
