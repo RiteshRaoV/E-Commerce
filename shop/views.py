@@ -53,11 +53,6 @@ class ListAllProducts(generics.ListAPIView):
     serializer_class = ProductSerializer
     pagination_class = StandardResultsSetPagination
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context.update({"request": self.request})
-        return context
-
 
 @permission_classes([IsAuthenticated, IsSeller])
 class AddProductView(generics.CreateAPIView):
@@ -127,11 +122,6 @@ class ListSellersProductsView(generics.ListAPIView):
             return Product.objects.filter(seller__id=seller_id)
         return Product.objects.none()
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context.update({"request": self.request})
-        return context
-
 
 class AddToCartView(generics.CreateAPIView):
     queryset = CartItem.objects.all()
@@ -177,11 +167,6 @@ class ListCartItemsView(generics.ListAPIView):
 class CreateOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context.update({"request": self.request})
-        return context
-
     @swagger_auto_schema(request_body=CreateOrderSerializer)
     def post(self, request, *args, **kwargs):
         user = self.request.user
@@ -218,7 +203,7 @@ class CreateOrderView(APIView):
 
         if coupon:
             total_price = coupon.apply_discount(total_price)
-            
+
         savings = actual_amount - total_price
 
         order = Order.objects.create(
@@ -253,10 +238,6 @@ class CreateOrderView(APIView):
 
 @permission_classes([IsAuthenticated])
 class CancelOrderView(APIView):
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context.update({"request": self.request})
-        return context
 
     def post(self, request, *args, **kwargs):
         order_id = self.kwargs.get("order_id")
